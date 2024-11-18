@@ -48,10 +48,11 @@ used in kernel.
 typedef short DTYPE;
 const int M = 256;
 
-extern "C" {
-
-void mm(DTYPE *A,  DTYPE *B, DTYPE *AB,   int N )
+extern "C"
 {
+
+    void mm(DTYPE *A, DTYPE *B, DTYPE *AB, int N)
+    {
 #pragma HLS INTERFACE m_axi port = A offset = slave bundle = gmem
 #pragma HLS INTERFACE m_axi port = B offset = slave bundle = gmem
 #pragma HLS INTERFACE m_axi port = AB offset = slave bundle = gmem
@@ -61,44 +62,68 @@ void mm(DTYPE *A,  DTYPE *B, DTYPE *AB,   int N )
 #pragma HLS INTERFACE s_axilite port = N bundle = control
 #pragma HLS INTERFACE s_axilite port = return bundle = control
 
-    DTYPE AB_block[M][M];
-// Fill This Part !!! Add pragma to partition AB_block
-
-    ib_loop: for(int ib = 0; ib < N/M; ib++) {
-        jb_loop: for(int jb = 0; jb < N/M; jb++) {
-            init_i_loop: for(int i = 0; i < M; i++) {
-// Fill This Part !!! Add #pragma HLS pipeline II=1 pragma in init_i_loop loop, therefore, init_j_loop is fully unrolled
-                init_j_loop: for(int j = 0; j < M; j++) {
-                    AB_block[i][j] = 0;
-                }
-            }
-
-            kb_loop: for(int kb = 0; kb < N/M; kb++) {
-                k_loop: for(int k = 0; k < M; k++) {
-                    DTYPE Bj[M];
-// Fill This Part !!! Add pragma to partition Bj
-                    readB_j_loop: for(int j = 0; j < M; j++) {
-                        DTYPE B_temp = B[(kb*M+k)*N+jb*M+j];
-                        Bj[j] = B_temp;
+        DTYPE AB_block[M][M];
+        // Fill This Part !!! Add pragma to partition AB_block
+#pragma HLS array_partition variable = AB_block complete dim = 1
+    ib_loop:
+        for (int ib = 0; ib < N / M; ib++)
+        {
+        jb_loop:
+            for (int jb = 0; jb < N / M; jb++)
+            {
+            init_i_loop:
+                for (int i = 0; i < M; i++)
+                {
+                    // Fill This Part !!! Add #pragma HLS pipeline II=1 pragma in init_i_loop loop, therefore, init_j_loop is fully unrolled
+#pragma HLS pipeline II = 1
+                init_j_loop:
+                    for (int j = 0; j < M; j++)
+                    {
+                        AB_block[i][j] = 0;
                     }
+                }
 
-                    i_loop: for(int i = 0; i < M; i++) {
-// Fill This Part !!! Add #pragma HLS pipeline II=1 pragma in i_loop loop, therefore, j_loop is fully unrolled
-                        DTYPE Ai =  A[((ib*M+i)*N+kb*M)+k];
-                        j_loop: for(int j = 0; j < M; j++) {
-                            AB_block[i][j] += Ai * Bj[j];
+            kb_loop:
+                for (int kb = 0; kb < N / M; kb++)
+                {
+                k_loop:
+                    for (int k = 0; k < M; k++)
+                    {
+                        DTYPE Bj[M];
+// Fill This Part !!! Add pragma to partition Bj
+#pragma HLS array_partition variable = Bj complete
+                    readB_j_loop:
+                        for (int j = 0; j < M; j++)
+                        {
+                            DTYPE B_temp = B[(kb * M + k) * N + jb * M + j];
+                            Bj[j] = B_temp;
+                        }
+
+                    i_loop:
+                        for (int i = 0; i < M; i++)
+                        {
+                            // Fill This Part !!! Add #pragma HLS pipeline II=1 pragma in i_loop loop, therefore, j_loop is fully unrolled
+#pragma HLS pipeline II = 1
+                            DTYPE Ai = A[((ib * M + i) * N + kb * M) + k];
+                        j_loop:
+                            for (int j = 0; j < M; j++)
+                            {
+                                AB_block[i][j] += Ai * Bj[j];
+                            }
                         }
                     }
                 }
-            }
 
-            writeAB_i_loop: for(int i = 0; i < M; i++) {
-                writeAB_j_loop: for(int j = 0; j < M; j++) {
-                    AB[(ib*M+i)*N+jb*M+j] = AB_block[i][j];
+            writeAB_i_loop:
+                for (int i = 0; i < M; i++)
+                {
+                writeAB_j_loop:
+                    for (int j = 0; j < M; j++)
+                    {
+                        AB[(ib * M + i) * N + jb * M + j] = AB_block[i][j];
+                    }
                 }
             }
         }
     }
-}
-
 }

@@ -67,8 +67,12 @@ CXXFLAGS += -fmessage-length=0 -fopenmp
 LDFLAGS += -lrt -lstdc++ 
 
 ############################## Setting up Kernel Variables ##############################
+
+
+PARALLEL_JOBS := 4
+VPP_PARALLEL_FLAGS := --jobs $(PARALLEL_JOBS)
 # Kernel compiler global settings
-VPP_FLAGS += --save-temps 
+VPP_FLAGS += --save-temps  $(VPP_PARALLEL_FLAGS)
 
 
 EXECUTABLE = ./hello_world

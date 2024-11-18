@@ -53,11 +53,12 @@ const int DTYPE_WIDTH_b = sizeof(DTYPE) * 8;
 typedef ap_int<PORT_WIDTH_b> block_t;
 const int DTYPE_PER_PORT = PORT_WIDTH_B / sizeof(DTYPE);
 
-extern "C" {
-
-// increase port width of B_p, AB_p
-void mm(DTYPE *A,  block_t *B_p, block_t *AB_p,   int N )
+extern "C"
 {
+
+    // increase port width of B_p, AB_p
+    void mm(DTYPE *A, block_t *B_p, block_t *AB_p, int N)
+    {
 #pragma HLS INTERFACE m_axi port = A offset = slave bundle = gmem0
 #pragma HLS INTERFACE m_axi port = B_p offset = slave bundle = gmem1
 #pragma HLS INTERFACE m_axi port = AB_p offset = slave bundle = gmem2
@@ -67,62 +68,93 @@ void mm(DTYPE *A,  block_t *B_p, block_t *AB_p,   int N )
 #pragma HLS INTERFACE s_axilite port = N bundle = control
 #pragma HLS INTERFACE s_axilite port = return bundle = control
 
-    DTYPE AB_block[M][M];
-// Fill This Part !!! Add pragma to partition AB_block
+        DTYPE AB_block[M][M];
+        // Fill This Part !!! Add pragma to partition AB_block
+#pragma HLS array_partition variable = AB_block complete dim = 1
 
-    ib_loop: for(int ib = 0; ib < N/M; ib++) {
-        jb_loop: for(int jb = 0; jb < N/M; jb++) {
-            init_i_loop: for(int i = 0; i < M; i++) {
-// Fill This Part !!! Add #pragma HLS pipeline II=1 pragma in init_i_loop loop, therefore, init_j_loop is fully unrolled
-                init_j_loop: for(int j = 0; j < M; j++) {
+    ib_loop:
+        for (int ib = 0; ib < N / M; ib++)
+        {
+        jb_loop:
+            for (int jb = 0; jb < N / M; jb++)
+            {
+            init_i_loop:
+                for (int i = 0; i < M; i++)
+                {
+                    // Fill This Part !!! Add #pragma HLS pipeline II=1 pragma in init_i_loop loop, therefore, init_j_loop is fully unrolled
+#pragma HLS pipeline II = 1
+                init_j_loop:
+                    for (int j = 0; j < M; j++)
+                    {
 #pragma HLS unroll
-                    AB_block[i][j] = 0;
-                }
-            }
-
-            kb_loop: for(int kb = 0; kb < N/M; kb++) {
-                k_loop: for(int k = 0; k < M; k++) {
-                    DTYPE Bj[M];
-// Fill This Part !!! Add pragma to partition Bj
-                    readB_j_loop: for(int jj = 0; jj < M/DTYPE_PER_PORT; jj++) {
-// Fill This Part !!! Add #pragma HLS pipeline II=1 pragma in readB_j_loop loop, therefore, j is fully unrolled
-// Fill This Part !!! read from B_p to temp 
-
-						for (int j = 0; j < DTYPE_PER_PORT; j++) {
-#pragma HLS unroll
-// Fill This Part !!! assign temp to Bj
-                        
-                        
-							
-						}
+                        AB_block[i][j] = 0;
                     }
+                }
 
-                    i_loop: for(int i = 0; i < M; i++) {
-// Fill This Part !!! Add #pragma HLS pipeline II=1 pragma in i_loop loop, therefore, j is fully unrolled
-                        DTYPE Ai =  A[((ib*M+i)*N+kb*M)+k];
-                        j_loop: for(int j = 0; j < M; j++) {
+            kb_loop:
+                for (int kb = 0; kb < N / M; kb++)
+                {
+                k_loop:
+                    for (int k = 0; k < M; k++)
+                    {
+                        DTYPE Bj[M];
+#pragma HLS array_partition variable = Bj complete
+                        // Fill This Part !!! Add pragma to partition Bj
+                    readB_j_loop:
+                        for (int jj = 0; jj < M / DTYPE_PER_PORT; jj++)
+                        {
+// Fill This Part !!! Add #pragma HLS pipeline II=1 pragma in readB_j_loop loop, therefore, j is fully unrolled
+// Fill This Part !!! read from B_p to temp
+#pragma HLS PIPELINE II = 1
+                            block_t temp = B_p[(kb * M + k) * N / DTYPE_PER_PORT + jb * M / DTYPE_PER_PORT + jj];
+
+                            for (int j = 0; j < DTYPE_PER_PORT; j++)
+                            {
 #pragma HLS unroll
-                            AB_block[i][j] += Ai * Bj[j];
+                                // Fill This Part !!! assign temp to Bj
+                                Bj[jj * DTYPE_PER_PORT + j] = temp.range((j + 1) * DTYPE_WIDTH_b - 1, j * DTYPE_WIDTH_b);
+
+                                // temp = temp >> DTYPE_WIDTH_b;
+                            }
+                        }
+
+                    i_loop:
+                        for (int i = 0; i < M; i++)
+                        {
+// Fill This Part !!! Add #pragma HLS pipeline II=1 pragma in i_loop loop, therefore, j is fully unrolled
+#pragma HLS pipeline II = 1
+                            DTYPE Ai = A[((ib * M + i) * N + kb * M) + k];
+                        j_loop:
+                            for (int j = 0; j < M; j++)
+                            {
+#pragma HLS unroll
+                                AB_block[i][j] += Ai * Bj[j];
+                            }
                         }
                     }
                 }
-            }
 
-            writeAB_i_loop: for(int i = 0; i < M; i++) {
-                writeAB_j_loop: for(int jj = 0; jj < M/DTYPE_PER_PORT; jj++) {
+            writeAB_i_loop:
+                for (int i = 0; i < M; i++)
+                {
+                writeAB_j_loop:
+                    for (int jj = 0; jj < M / DTYPE_PER_PORT; jj++)
+                    {
 // Fill This Part !!! Add #pragma HLS pipeline II=1 pragma in writeAB_j_loop loop, therefore, j is fully unrolled
-					block_t AB_temp;
-					for (int j = 0; j < DTYPE_PER_PORT; j++) {
+#pragma HLS PIPELINE II = 1
+                        block_t AB_temp;
+                        for (int j = 0; j < DTYPE_PER_PORT; j++)
+                        {
 #pragma HLS unroll
-// Fill This Part !!! read from AB_block to temp 
-
-					}
-// Fill This Part !!! read from temp to AB_p 
-
+                            // Fill This Part !!! read from AB_block to temp
+                            // AB_temp = AB_temp << DTYPE_WIDTH_b;
+                            AB_temp = (AB_temp << DTYPE_WIDTH_b) | AB_block[i][jj * DTYPE_PER_PORT + j];
+                        }
+                        // Fill This Part !!! read from temp to AB_p
+                        AB_p[(ib * M + i) * N / DTYPE_PER_PORT + jb * M / DTYPE_PER_PORT + jj] = AB_temp;
+                    }
                 }
             }
         }
     }
-}
-
 }
