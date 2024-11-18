@@ -1,8 +1,7 @@
 *
 
-!src/*.cpp
+!*.cpp
 !*.h
-!*.mk
 !*.mk
 !Makefile
 !.gitignore
